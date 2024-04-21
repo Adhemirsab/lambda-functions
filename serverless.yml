@@ -27,17 +27,17 @@ provider:
             - scheduler:*
             - iam:*
           Resource: "*"
-  package:
-    individually: true
-    patterns: ["!**/*", "package.json"]
-  custom:
-    version: "v1"
-    prefix: ${self:service}-${self:provider.stage}
-  functions:
-    initial:
-      handler: dist/index.js.handler
-      events::
-        - httpApi:
+package:
+  individually: true
+  patterns: ["!**/*", "package.json"]
+custom:
+  version: "v1"
+  prefix: ${self:service}-${self:provider.stage}
+functions:
+  initial:
+    handler: dist/index.js.handler
+    events:
+      - httpApi:
           method: Get:
-           path: /${self:custom.version}/health
+          path: /${self:custom.version}/health
 
