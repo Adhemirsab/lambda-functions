@@ -6,8 +6,8 @@ provider:
   name: aws
   runtime: nodejs18.x
   architecture: arm64
-  region: ${env.AWS_REGION}
-  stage: ${env:STAGE}
+  region: us-east-1
+  stage: qa
   versionFunctions: false
   httpApi:
     cors: true
