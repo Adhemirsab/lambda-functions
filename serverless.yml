@@ -35,7 +35,7 @@ custom:
   prefix: ${self:service}-${self:provider.stage}
 functions:
   initial:
-    handler: dist/index.js.handler
+    handler: dist/index.handler
     events:
       - httpApi:
           method: GET
