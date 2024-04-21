@@ -38,6 +38,5 @@ functions:
     handler: dist/index.js.handler
     events:
       - httpApi:
-          method: Get:
+          method: GET
           path: /${self:custom.version}/health
-
