@@ -29,7 +29,10 @@ provider:
           Resource: "*"
 package:
   individually: true
-  patterns: ["!**/*", "package.json"]
+  patterns:
+    - "!**"
+    - "dist/**"
+    - "package.json"
 custom:
   version: "v1"
   prefix: ${self:service}-${self:provider.stage}
