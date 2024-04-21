@@ -11,7 +11,7 @@ provider:
   versionFunctions: false
   httpApi:
     cors: true
-    name: name: ${self:service}-${self:provider.stage}-api
+    name: ${self:service}-${self:provider.stage}-api
   environment:
     ENV_PREFIX: ${self:service}-${self:provider.stage}
   iam:
