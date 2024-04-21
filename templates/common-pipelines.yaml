@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Resources:
+  GitHubConnection:
+    Type: AWS::CodeStarConnections::Connection
+    Properties:
+      ConnectionName: github-connection
+      ProviderType: GitHub
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: "CodePipeline iam role"
+      RoleName: "common-pipelines-codepipelinerole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DefaultPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codestar-connections:*
+                  - codepipeline:*
+                  - codebuild:*
+                  - s3:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                  - iam:CreateRole
+                  - iam:CreatePolicy
+                  - iam:DeleteRole
+                  - iam:DeletePolicy
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:PutRolePolicy
+                Resource: "*"
+
+  CodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Description: "CodeBuild iam role"
+      RoleName: "common-pipelines-codebuildrole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  DeployApiGoProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: "common-pipelines-deployapigoproject"
+      Description: "Deploy serverless go project"
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+        Type: "ARM_CONTAINER"
+      Source:
+        Type: "CODEPIPELINE"
+        GitCloneDepth: 1
+        BuildSpec: |
+          version: 0.2
+
+          phases:
+            build:
+              commands:
+                - make build
+                - make deploy
+      Artifacts:
+        Type: "CODEPIPELINE"
+      TimeoutInMinutes: 60
+
+  DeployApiJsProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: "common-pipelines-deployapijsproject"
+      Description: "Deploy serverless js project"
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+        Type: "ARM_CONTAINER"
+      Source:
+        Type: "CODEPIPELINE"
+        GitCloneDepth: 1
+        BuildSpec: |
+          version: 0.2
+
+          phases:
+            build:
+              commands:
+                - npm ci
+                - npm run build
+                - npm run deploy
+      Artifacts:
+        Type: "CODEPIPELINE"
+      TimeoutInMinutes: 60
+
+  BuildWebCsrProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: "common-pipelines-buildwebcsrproject"
+      Description: "Build web client server rendering js project"
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/amazonlinux2-aarch64-standard:3.0"
+        Type: "ARM_CONTAINER"
+      Source:
+        Type: "CODEPIPELINE"
+        GitCloneDepth: 1
+        BuildSpec: |
+          version: 0.2
+
+          phases:
+            install:
+              commands:
+                - npm ci
+
+            pre_build:
+              commands:
+                - JSON_BUILD_ENVIRONMENT=$(aws ssm get-parameter --name /$STAGE/$SERVICE/BUILD_ENVIRONMENTS --query "Parameter.Value" --output text)
+                - echo $JSON_BUILD_ENVIRONMENT > envs.json
+                - npx --yes mustache envs.json src/environment/environment.mustache > src/environment/environment.ts
+
+            build:
+              commands:
+                - npm run build
+          artifacts:
+            files:
+              - "**/*"
+            base-directory: "dist"
+      Artifacts:
+        Type: "CODEPIPELINE"
+      TimeoutInMinutes: 60
+
+Outputs:
+  GitHubConnectionArn:
+    Description: "GitHub connection arn"
+    Value: !Ref GitHubConnection
+    Export:
+      Name: common-pipelines-connectionarn
+  GitHubConnectionOwnerAccountId:
+    Description: "GitHub connection owner account id"
+    Value: !GetAtt GitHubConnection.OwnerAccountId
+    Export:
+      Name: common-pipelines-connectionowneraccountid
+  CodePipelineRoleArn:
+    Description: "CodePipeline iam role arn"
+    Value: !GetAtt CodePipelineRole.Arn
+    Export:
+      Name: common-pipelines-codepipelinerole
+  DeployApiGoProjectName:
+    Description: "CodeBuild project for deploying api go"
+    Value: !Ref DeployApiGoProject
+    Export:
+      Name: common-pipelines-deployapigoproject
+  DeployApiJsProjectName:
+    Description: "CodeBuild project for deploying api js"
+    Value: !Ref DeployApiJsProject
+    Export:
+      Name: common-pipelines-deployapijsproject
+  BuildWebCsrProjectName:
+    Description: "CodeBuild project for building web csr"
+    Value: !Ref BuildWebCsrProject
+    Export:
+      Name: common-pipelines-buildwebcsrproject

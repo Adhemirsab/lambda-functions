@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  GithubUsername:
+    Description: "Github username/organization"
+    Type: String
+    Default: kusipay
+  Repository:
+    Description: "Repository name"
+    Type: String
+  Stage:
+    Description: "Stage"
+    Type: String
+    AllowedValues:
+      - qa
+      - prod
+  Branch:
+    Description: "Branch name"
+    Type: String
+
+Resources:
+  ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${Repository}-${Stage}-${Branch}-artifactstorebucket"
+      VersioningConfiguration:
+        Status: Enabled
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub "${Repository}-${Stage}-${Branch}"
+      ArtifactStore:
+        Location: !Ref ArtifactStoreBucket
+        Type: S3
+      RoleArn: !ImportValue common-pipelines-codepipelinerole
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: "1"
+              Configuration:
+                ConnectionArn: !ImportValue common-pipelines-connectionarn
+                FullRepositoryId: !Sub "${GithubUsername}/${Repository}"
+                BranchName: !Ref Branch
+                OutputArtifactFormat: "CODE_ZIP"
+                DetectChanges: "true"
+              OutputArtifacts:
+                - Name: SourceOutput
+              Namespace: SourceVariables
+        - Name: ManualApproval
+          Actions:
+            - Name: Approval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: "1"
+              Configuration:
+                CustomData: "Manual Approval"
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !ImportValue common-pipelines-deployapijsproject
+                EnvironmentVariables: !Sub '[{"name":"STAGE","value":"${Stage}","type":"PLAINTEXT"}]'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Namespace: BuildVariables
